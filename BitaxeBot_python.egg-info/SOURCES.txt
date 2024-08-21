@@ -1,0 +1,12 @@
+BitaxeBot.py
+MANIFEST.in
+config.ini
+setup.py
+BitaxeBot-python/__init__.py
+BitaxeBot_python.egg-info/PKG-INFO
+BitaxeBot_python.egg-info/SOURCES.txt
+BitaxeBot_python.egg-info/dependency_links.txt
+BitaxeBot_python.egg-info/entry_points.txt
+BitaxeBot_python.egg-info/not-zip-safe
+BitaxeBot_python.egg-info/requires.txt
+BitaxeBot_python.egg-info/top_level.txt
