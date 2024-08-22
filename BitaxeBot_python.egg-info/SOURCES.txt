@@ -1,5 +1,6 @@
 BitaxeBot.py
 MANIFEST.in
+README.md
 config.ini
 setup.py
 BitaxeBot-python/__init__.py
