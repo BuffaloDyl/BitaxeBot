@@ -20,6 +20,12 @@ def create_config_file():
             print(f"Warning: Default config file template not found at {default_config_path}.")
     else:
         print(f"Config file already exists at {config_file_path}.")
+        new_config_copy_path = os.path.join(config_dir, 'config.ini.new')
+        if os.path.isfile(default_config_path):
+            shutil.copy(default_config_path, new_config_copy_path)
+            print(f"A copy of the shipped config.ini has been saved as {new_config_copy_path}")
+        else:
+            print(f"Warning: Default config file template not found at {default_config_path}.")
 
 if __name__ == "__main__":
     create_config_file()

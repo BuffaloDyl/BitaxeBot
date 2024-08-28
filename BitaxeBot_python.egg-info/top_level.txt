@@ -1,2 +1,3 @@
 BitaxeBot
-BitaxeBot-python
+BitaxeBot-nostr
+nostr

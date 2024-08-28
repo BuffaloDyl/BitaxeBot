@@ -3,7 +3,7 @@ MANIFEST.in
 README.md
 config.ini
 setup.py
-BitaxeBot-python/__init__.py
+BitaxeBot-nostr/__init__.py
 BitaxeBot_python.egg-info/PKG-INFO
 BitaxeBot_python.egg-info/SOURCES.txt
 BitaxeBot_python.egg-info/dependency_links.txt
@@ -11,3 +11,15 @@ BitaxeBot_python.egg-info/entry_points.txt
 BitaxeBot_python.egg-info/not-zip-safe
 BitaxeBot_python.egg-info/requires.txt
 BitaxeBot_python.egg-info/top_level.txt
+nostr/__init__.py
+nostr/bech32.py
+nostr/delegation.py
+nostr/event.py
+nostr/filter.py
+nostr/key.py
+nostr/message_pool.py
+nostr/message_type.py
+nostr/pow.py
+nostr/relay.py
+nostr/relay_manager.py
+nostr/subscription.py

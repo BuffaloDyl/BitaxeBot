@@ -9,12 +9,13 @@ class InstallWithPostInstall(_install):
 
 setup(
     name='BitaxeBot-python',
-    version='0.2',
+    version='0.3',
     packages=find_packages(),
     py_modules=['BitaxeBot'],
     install_requires=[
         'requests',
         'telebot',
+        'configparser',
     ],
     entry_points={
         'console_scripts': [
