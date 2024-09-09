@@ -1,6 +1,0 @@
-Metadata-Version: 2.1
-Name: BitaxeBot-python
-Version: 0.3
-Requires-Dist: requests
-Requires-Dist: telebot
-Requires-Dist: configparser
