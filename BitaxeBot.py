@@ -10,9 +10,80 @@ from nostr.event import EncryptedDirectMessage
 import ssl
 from nostr.relay_manager import RelayManager
 from nostr.key import PublicKey
+import importlib.resources as resources
+import shutil
+import BitaxeBot
+import argparse
+
+def check_for_config():
+    config_dir = os.path.expanduser('~/BitaxeBot')
+    config_path = os.path.join(config_dir, 'config.ini')
+    config_bak_path = os.path.join(config_dir, 'config.ini.bak')
+    os.makedirs(config_dir, exist_ok=True)
+
+    try:
+        config_in_package = resources.files(BitaxeBot).joinpath('config.ini')
+        shipped_config = configparser.ConfigParser()
+        shipped_config.read(config_in_package)
+
+        if not os.path.isfile(config_path):
+            print(f"Users config.ini not found. Copying from package...")
+            shutil.copy(config_in_package, config_path)
+            print(f"Running Editor...")
+            edit_config()
+        else:
+            user_config = configparser.ConfigParser()
+            user_config.read(config_path)
+
+            if 'version' in shipped_config and 'version' in user_config:
+                shipped_version = shipped_config['version'].get('v', '0')
+                user_version = user_config['version'].get('v', '0')
+
+                if shipped_version > user_version:
+                    print(f"config.ini already exists. Creating backup and merging missing keys/values...")
+                    shutil.copy(config_path, config_bak_path)
+                    for section in shipped_config.sections():
+                        if not user_config.has_section(section):
+                            user_config.add_section(section)
+                        for key, value in shipped_config.items(section):
+                            if not user_config.has_option(section, key):
+                                user_config.set(section, key, value)
+
+                    with open(config_path, 'w') as config_file:
+                        user_config.write(config_file)
+                    print(f"Running Editor...")
+                    edit_config()
+                else:
+                    print(f"User's config.ini is up to date.")
+            else:
+                print(f"Newer version detected in shipped config. Merging missing keys/values...")
+                shutil.copy(config_path, config_bak_path)
+                print(f"Backup created at config.ini.bak")
+                for section in shipped_config.sections():
+                        print(section)
+                        if not user_config.has_section(section):
+                            user_config.add_section(section)
+                        for key, value in shipped_config.items(section):
+                            if not user_config.has_option(section, key):
+                                user_config.set(section, key, value)
+                with open(config_path, 'w') as config_file:
+                    user_config.write(config_file)
+                print(f"Running Editor...")
+                edit_config()
+    except Exception as e:
+        print(f"Failed to process config.ini: {e}")
 
 
 def main():
+    parser = argparse.ArgumentParser(description="BitaxeBot CLI")
+    parser.add_argument('-config', action='store_true', help="Launch config editor")
+    
+    args = parser.parse_args()
+
+    if args.config:
+        edit_config()
+    else:
+        check_for_config()
     global config, bot, BOT_TOKEN, IP, EnableTelegram, Enablenostr, TelegramUID, Mempool, EnableMempool, n_pub, HEXnpub, private_key, public_key, boottime
     def get_config_file_path():
         home_dir = os.path.expanduser("~")
@@ -60,7 +131,10 @@ def main():
         Mempool = config['mempool']['mempool']
         threading.Thread(target=did_i_win, daemon=True).start()
     if Enablenostr == 1:
-        threading.Thread(target=ReadDMS, daemon=True).start()
+        if EnableTelegram == 1:
+            threading.Thread(target=ReadDMS, daemon=True).start()
+        else:
+            ReadDMS()
 ###TELEGRAM
     if EnableTelegram == 1:
         commands = [
@@ -128,46 +202,63 @@ def nostDM(SecretMessage):
     return
 
 from nostr.filter import Filter, Filters
-from nostr.event import Event, EventKind
+from nostr.event import Event
 from nostr.relay_manager import RelayManager
 from nostr.message_type import ClientMessageType
 
 def ReadDMS():
     global relay_manager, HEXnpub
-    relay_manager = RelayManager()
-    relay_manager.add_relay("wss://nostr-pub.wellorder.net")
-    relay_manager.add_relay("wss://relay.damus.io")
-    relay_manager.open_connections({"cert_reqs": ssl.CERT_NONE}) # NOTE: This disables ssl certificate verification
-    time.sleep(1.25) # allow the connections to open
+    relaystart() #establish and open relay connection
+    threading.Thread(target=nostdmsubscribe, daemon=True).start() #ask relays for relevant DMs
 
-    filters = Filters([Filter(authors=[HEXnpub], kinds=[4])])
-    subscription_id = "xxXXxxXXxxXXxxXXneedstoberandom"
-    request = [ClientMessageType.REQUEST, subscription_id]
-    request.extend(filters.to_json_array())
-    relay_manager.add_subscription(subscription_id, filters)
-    relay_manager.open_connections({"cert_reqs": ssl.CERT_NONE}) # NOTE: This disables ssl certificate verification
-    time.sleep(1.25) # allow the connections to open
-
-    message = json.dumps(request)
-    relay_manager.publish_message(message)
-    time.sleep(1) # allow the messages to send
-    nostDM("BitaxeBot Connected!")
-    botname = f"{{\"display_name\":\"{config['nostr']['botname']}\",\"name\":\"{config['nostr']['botname']}\",\"picture\":\"https://github.com/skot/bitaxe/raw/master/doc/bitaxe_204.jpg\"}}"
-    event = Event(botname, public_key.hex(), kind=0, tags=["expiration", f"{time.time() + (24*60*60)}"])
-    private_key.sign_event(event)
-    event_json = event.to_message()
-    relay_manager.publish_message(event_json)
     while True:
         while relay_manager.message_pool.has_events():
             event_msg = relay_manager.message_pool.get_event()
             try:
                 if boottime < event_msg.event.created_at:
                     decrypted_message = private_key.decrypt_message(event_msg.event.content, HEXnpub)
+                    print(f"New Event found {formattime(round(time.time() - boottime))}: {decrypted_message}")
                     procNostDM(decrypted_message)
             except Exception as e:
                 print(f"Failed to decrypt message: {e}")
-        #print("Reading...")
-        time.sleep(15)
+        time.sleep(1)
+
+def relaystart():
+    global relay_manager, HEXnpub
+    relay_manager = RelayManager()
+    relays = dict(config['nostrrelays']) #add relays
+    for key, url in relays.items():
+        if url != "":
+            print(f"Adding relay: {url}")
+            relay_manager.add_relay(url)
+    relay_manager.open_connections({"cert_reqs": ssl.CERT_NONE}) # NOTE: This disables ssl certificate verification
+    time.sleep(1.25) # allow the connections to open
+
+    #send connected DM
+    nostDM("BitaxeBot Connected!")
+
+    #update bot username
+    botname = f"{{\"display_name\":\"{config['nostr']['botname']}\",\"name\":\"{config['nostr']['botname']}\",\"picture\":\"https://github.com/skot/bitaxe/raw/master/doc/bitaxe_204.jpg\"}}"
+    event = Event(botname, public_key.hex(), kind=0)
+    private_key.sign_event(event)
+    event_json = event.to_message()
+    relay_manager.publish_message(event_json)
+
+def nostdmsubscribe():
+    global relay_manager, HEXnpub
+    while True:
+        print("Updating Subscription...")
+        filters = Filters([Filter(authors=[HEXnpub], kinds=[4])])
+        subscription_id = f"Bitaxebot{time.time()}"
+        request = [ClientMessageType.REQUEST, subscription_id]
+        request.extend(filters.to_json_array())
+        relay_manager.add_subscription(subscription_id, filters)
+
+        message = json.dumps(request)
+        relay_manager.publish_message(message)
+        time.sleep(10*60)
+        relay_manager.open_connections({"cert_reqs": ssl.CERT_NONE}) # NOTE: This disables ssl certificate verification
+        time.sleep(1.25) # allow the connections to open
 
 def procNostDM(plaintextmsg):
     plaintext = str(plaintextmsg).lower()
@@ -319,7 +410,20 @@ def did_i_win():
         except requests.exceptions.Timeout:
             return f"Request timed out. Can't connect to Bitaxe."
         except requests.exceptions.RequestException as e:
-            return f"Error: {e}"
+            return f"Error: {e}"\
+
+def edit_config():
+    import subprocess
+    config_path = os.path.expanduser('~/BitaxeBot/config.ini')
+    editor = os.environ.get('EDITOR', 'nano')
+    try:
+        subprocess.run([editor, config_path], check=True)
+        print(f"Configuration file {config_path} opened in {editor}.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error opening file in {editor}: {e}")
+    except FileNotFoundError:
+        print(f"Editor {editor} not found. Please install {editor} or set the EDITOR environment variable.")
+
 
 if __name__ == "__main__":
     main()
