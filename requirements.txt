@@ -1,0 +1,4 @@
+requests
+telebot
+configparser
+nostr
